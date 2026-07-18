@@ -1086,6 +1086,15 @@ fn write_session(s: &mut Session, bytes: &[u8]) -> anyhow::Result<()> {
 impl rmcp::ServerHandler for TuiServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
+            // Advertise this crate's real identity. `env!` is expanded here, in
+            // tui_mcp, so it reports our name/version — unlike rmcp's default
+            // `Implementation::from_build_env()`, which resolves to rmcp itself.
+            server_info: rmcp::model::Implementation {
+                name: env!("CARGO_PKG_NAME").to_owned(),
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+                website_url: Some("https://github.com/Fabian2000/tui_mcp".to_owned()),
+                ..Default::default()
+            },
             instructions: Some(
                 "Remote-control TUI programs. Start a session (pty for TUIs, piped for \
                  line tools), then send_key / send_text / send_mouse, and read_screen \
