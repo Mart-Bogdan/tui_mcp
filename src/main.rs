@@ -1,4 +1,4 @@
-//! `tui_mcp`: an MCP server for remote-controlling and observing TUI programs.
+﻿//! `tui_mcp`: an MCP server for remote-controlling and observing TUI programs.
 //!
 //! Start a program under a real PTY (full terminal emulation) or with plain
 //! pipes, then drive it with simulated keyboard / mouse input and read back the
@@ -1124,13 +1124,12 @@ fn write_session(s: &mut Session, bytes: &[u8]) -> anyhow::Result<()> {
 impl rmcp::ServerHandler for TuiServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
-            // Advertise this crate's real identity. `env!` is expanded here, in
-            // tui_mcp, so it reports our name/version — unlike rmcp's default
-            // `Implementation::from_build_env()`, which resolves to rmcp itself.
+            // Set identity explicitly — rmcp's `Implementation::from_build_env()` would
+            // report rmcp's own name/version (its `env!` runs in rmcp's crate), not ours.
             server_info: rmcp::model::Implementation {
                 name: env!("CARGO_PKG_NAME").to_owned(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
-                website_url: Some("https://github.com/Fabian2000/tui_mcp".to_owned()),
+                website_url: Some(env!("CARGO_PKG_REPOSITORY").to_owned()),
                 ..Default::default()
             },
             instructions: Some(
