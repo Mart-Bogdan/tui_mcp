@@ -26,7 +26,7 @@ use serde::Deserialize;
 use keys::{Mods, key_to_bytes, unescape};
 use mouse::{action_to_bytes, parse_action};
 use session::{ScreenFormat, Session, SessionManager, SpawnOpts, Stream};
-use wait::{WaitReturn, sample_screen, wait_reply};
+use wait::{POLL_INTERVAL_MS, WaitReturn, round_ms, sample_screen, wait_reply};
 
 // ---- Tool input schemas ----------------------------------------------------
 
@@ -896,7 +896,8 @@ impl TuiServer {
         } else {
             None
         };
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(timeout);
+        let started = tokio::time::Instant::now();
+        let deadline = started + std::time::Duration::from_millis(timeout);
         loop {
             let expired = tokio::time::Instant::now() >= deadline;
             let sample = sample_screen(
@@ -916,7 +917,8 @@ impl TuiServer {
             .map_err(|e| err(&e))?;
             if sample.matched {
                 let what = if absent { "gone" } else { "matched" };
-                return Ok(reply(wait_reply(what, format, &sample)));
+                let outcome = format!("{what} in ~{}ms", round_ms(started.elapsed().as_millis()));
+                return Ok(reply(wait_reply(&outcome, format, &sample)));
             }
             if expired {
                 let what = if absent { "still present" } else { "not found" };
@@ -926,7 +928,7 @@ impl TuiServer {
                     &sample,
                 )));
             }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS)).await;
         }
     }
 
@@ -940,7 +942,8 @@ impl TuiServer {
     ) -> Result<CallToolResult, McpError> {
         let timeout = a.timeout_ms.unwrap_or(5000);
         let format = a.format;
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(timeout);
+        let started = tokio::time::Instant::now();
+        let deadline = started + std::time::Duration::from_millis(timeout);
         // Snapshot the starting frame (never rendered/returned) to compare against.
         let initial = sample_screen(
             &self.sessions,
@@ -964,7 +967,8 @@ impl TuiServer {
             )
             .map_err(|e| err(&e))?;
             if sample.matched {
-                return Ok(reply(wait_reply("changed", format, &sample)));
+                let outcome = format!("changed in ~{}ms", round_ms(started.elapsed().as_millis()));
+                return Ok(reply(wait_reply(&outcome, format, &sample)));
             }
             // Timeout means the screen never changed, so it still equals what the
             // caller already had — return the outcome only, never the screen.
@@ -975,7 +979,7 @@ impl TuiServer {
                     the wait began — confirm with read_screen."
                 )));
             }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS)).await;
         }
     }
 
@@ -1005,7 +1009,7 @@ impl TuiServer {
             if tokio::time::Instant::now() >= deadline {
                 return Ok(reply(format!("TIMEOUT after {timeout}ms: still running")));
             }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS)).await;
         }
     }
 
@@ -1053,7 +1057,7 @@ impl TuiServer {
                     "TIMEOUT after {timeout}ms: not found\n{buf}"
                 )));
             }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS)).await;
         }
     }
 
@@ -1068,9 +1072,10 @@ impl TuiServer {
         let stable_ms = a.stable_ms.unwrap_or(300);
         let timeout = a.timeout_ms.unwrap_or(5000);
         let format = a.format;
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(timeout);
+        let started = tokio::time::Instant::now();
+        let deadline = started + std::time::Duration::from_millis(timeout);
         let mut last = String::new();
-        let mut stable_since = tokio::time::Instant::now();
+        let mut stable_since = started;
         loop {
             let now = tokio::time::Instant::now();
             let expired = now >= deadline;
@@ -1088,7 +1093,8 @@ impl TuiServer {
             .map_err(|e| err(&e))?;
 
             if sample.matched {
-                return Ok(reply(wait_reply("stable", format, &sample)));
+                let outcome = format!("stable in ~{}ms", round_ms(started.elapsed().as_millis()));
+                return Ok(reply(wait_reply(&outcome, format, &sample)));
             }
             if sample.base.text != last {
                 last = sample.base.text.clone();
@@ -1101,7 +1107,7 @@ impl TuiServer {
                     &sample,
                 )));
             }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS)).await;
         }
     }
 }
