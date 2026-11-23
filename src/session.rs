@@ -911,7 +911,7 @@ mod tests {
             rows: 24,
             buffer_bytes: 0,
         };
-        let cmd = build_command(&opts);
+        let cmd = build_command(&opts, Path::new("."));
         assert_eq!(cmd.get_env("PATH"), None);
         assert_eq!(cmd.get_env("FOO"), Some("bar".as_ref()));
     }
