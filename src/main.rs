@@ -24,6 +24,7 @@
 // Shared with build.rs, which stamps it as the exe's FileDescription.
 include!("display_name.rs");
 
+mod child_env;
 #[cfg(feature = "dev-tools")]
 mod dev_tools;
 mod keys;
@@ -111,9 +112,12 @@ struct StartArgs {
     /// Working directory. Set it: the default may differ from your current
     /// directory.
     cwd: Option<String>,
-    /// Extra environment variables.
+    /// Extra environment variables, set on top of the inherited ones.
+    /// A fixed list of Claude Code's session variables (such as its session id
+    /// and messaging token) is not inherited; set one here to pass it anyway.
+    /// A null value removes that variable from the program's environment.
     #[serde(default)]
-    env: HashMap<String, String>,
+    env: HashMap<String, Option<String>>,
     /// Terminal columns (pty mode). Default 80; wider avoids wrapped lines.
     #[serde(default)]
     #[schemars(extend("default" = DEFAULT_COLS))]
@@ -1632,6 +1636,19 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn start_args_env_null_means_remove_and_empty_means_empty() {
+        let args: StartArgs = serde_json::from_value(serde_json::json!({
+            "name": "s",
+            "command": "prog",
+            "env": { "GONE": null, "EMPTY": "", "SET": "x" }
+        }))
+        .unwrap();
+        assert_eq!(args.env.get("GONE"), Some(&None));
+        assert_eq!(args.env.get("EMPTY"), Some(&Some(String::new())));
+        assert_eq!(args.env.get("SET"), Some(&Some("x".to_string())));
+    }
 
     #[tokio::test]
     async fn write_png_creates_parent_dirs() {
